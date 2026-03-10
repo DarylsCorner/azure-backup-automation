@@ -1,0 +1,18 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+*.swp
+*.swo
+
+# Ansible
+*.retry
+*.log
+
+# Secrets / creds — never commit these
+*.pem
+*.key
+sap-parameters.yaml
+*hosts.yaml

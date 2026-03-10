@@ -1,0 +1,83 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
+
+# /*---------------------------------------------------------------------------8
+# |                                                                             |
+# |        Playbook for Azure VM Backup Protection Management                  |
+# |                                                                             |
+# |  Enables Azure Backup for all VMs in the SAP system resource group.        |
+# |  Automatically detects and excludes shared disks (e.g. ASCS/ERS quorum).  |
+# |                                                                             |
+# +------------------------------------4--------------------------------------*/
+---
+
+- hosts:                               localhost
+  name:                                "VM Backup: - Enable Azure Backup Protection"
+  gather_facts:                        false
+
+  vars:
+    backup_action:                     "{{ backup_action | default('enable') }}"
+
+  tasks:
+
+    - name:                            "VM Backup: - Validate required extra-vars"
+      ansible.builtin.assert:
+        that:
+          - backup_vault_name is defined and backup_vault_name | length > 0
+          - backup_vault_rg   is defined and backup_vault_rg   | length > 0
+          - backup_policy_name is defined and backup_policy_name | length > 0
+        fail_msg: |
+          Missing required extra-vars. Run with:
+            --extra-vars="backup_vault_name=<vault>
+                          backup_vault_rg=<rg>
+                          backup_policy_name=<policy>"
+
+    - name:                            "VM Backup: - Get resource group from sap-parameters"
+      ansible.builtin.shell: |
+        grep 'resource_group_name' "{{ _workspace_directory }}/sap-parameters.yaml" \
+          | grep -v '#' | head -1 | awk -F': ' '{print $2}' | tr -d ' \r\n'
+      register:                        rg_result
+      changed_when:                    false
+
+    - name:                            "VM Backup: - Get subscription from sap-parameters"
+      ansible.builtin.shell: |
+        grep 'subscription_id' "{{ _workspace_directory }}/sap-parameters.yaml" \
+          | grep -v '#' | head -1 | awk -F': ' '{print $2}' | tr -d ' \r\n'
+      register:                        sub_result
+      changed_when:                    false
+
+    - name:                            "VM Backup: - Display configuration"
+      ansible.builtin.debug:
+        msg:
+          - "Action         : {{ backup_action }}"
+          - "Resource Group : {{ rg_result.stdout }}"
+          - "Subscription   : {{ sub_result.stdout }}"
+          - "Vault Name     : {{ backup_vault_name }}"
+          - "Vault RG       : {{ backup_vault_rg }}"
+          - "Policy Name    : {{ backup_policy_name }}"
+
+    - name:                            "VM Backup: - Run backup management script"
+      ansible.builtin.script:
+        cmd:                           >
+          {{ playbook_dir }}/../scripts/backup_management.sh
+          {{ rg_result.stdout }}
+          {{ backup_vault_name }}
+          {{ backup_vault_rg }}
+          {{ backup_policy_name }}
+          {{ sub_result.stdout }}
+      register:                        backup_result
+      when:                            backup_action == 'enable'
+
+    - name:                            "VM Backup: - Display results"
+      ansible.builtin.debug:
+        var:                           backup_result.stdout_lines
+      when:                            backup_action == 'enable'
+
+    - name:                            "VM Backup: - Create completion flag"
+      ansible.builtin.file:
+        path:                          "{{ _workspace_directory }}/.progress/vm-backup-done"
+        state:                         touch
+        mode:                          "0755"
+      when:
+        - backup_action == 'enable'
+        - backup_result.rc == 0
