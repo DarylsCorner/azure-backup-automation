@@ -58,14 +58,15 @@
 
     - name:                            "VM Backup: - Run backup management script"
       ansible.builtin.script:
-        cmd:                           >
+        cmd:                           >-
           {{ playbook_dir }}/../scripts/backup_management.sh
-          {{ rg_result.stdout }}
-          {{ backup_vault_name }}
-          {{ backup_vault_rg }}
-          {{ backup_policy_name }}
-          {{ sub_result.stdout }}
+          '{{ rg_result.stdout }}'
+          '{{ backup_vault_name }}'
+          '{{ backup_vault_rg }}'
+          '{{ backup_policy_name }}'
+          '{{ sub_result.stdout }}'
       register:                        backup_result
+      changed_when:                    backup_result.rc == 0
       when:                            backup_action == 'enable'
 
     - name:                            "VM Backup: - Display results"
@@ -77,7 +78,8 @@
       ansible.builtin.file:
         path:                          "{{ _workspace_directory }}/.progress/vm-backup-done"
         state:                         touch
-        mode:                          "0755"
+        mode:                          "0644"
       when:
         - backup_action == 'enable'
+        - backup_result is defined
         - backup_result.rc == 0

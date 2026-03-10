@@ -2,7 +2,7 @@
 # Backup Management Script for SAP VMs
 # Usage: backup_management.sh <resource_group> <vault_name> <vault_rg> <policy_name> <subscription_id>
 
-set -e
+set -euo pipefail
 
 RESOURCE_GROUP="$1"
 VAULT_NAME="$2"
@@ -15,6 +15,14 @@ if [ -z "$RESOURCE_GROUP" ] || [ -z "$VAULT_NAME" ] || [ -z "$VAULT_RG" ] || \
   echo "Usage: $0 <resource_group> <vault_name> <vault_rg> <policy_name> <subscription_id>"
   exit 1
 fi
+
+# Verify required tools are present
+for cmd in az jq; do
+  if ! command -v "$cmd" &>/dev/null; then
+    echo "ERROR: Required tool '$cmd' is not installed or not in PATH."
+    exit 1
+  fi
+done
 
 echo "===== VM Backup Management Script ====="
 echo "Resource Group : $RESOURCE_GROUP"
@@ -41,7 +49,7 @@ VM_COUNT=$(echo "$vm_ids" | wc -l | tr -d ' ')
 echo "Found $VM_COUNT VM(s)"
 echo ""
 
-for vm_id in $vm_ids; do
+while IFS= read -r vm_id; do
   vm_name=$(basename "$vm_id")
   echo "Processing VM: $vm_name"
 
@@ -96,15 +104,15 @@ for vm_id in $vm_ids; do
       exclude_disks="${exclude_disks:+$exclude_disks }$lun"
     done
 
-    az backup protection enable-for-vm \
-      --vm "$vm_id" \
-      --resource-group "$VAULT_RG" \
-      --vault-name "$VAULT_NAME" \
-      --policy-name "$POLICY_NAME" \
-      --disk-list-setting exclude \
-      --diskslist $exclude_disks
-
-    if [ $? -eq 0 ]; then
+    # Word-split on $exclude_disks is intentional: --diskslist expects space-separated LUN integers
+    # shellcheck disable=SC2086
+    if az backup protection enable-for-vm \
+        --vm "$vm_id" \
+        --resource-group "$VAULT_RG" \
+        --vault-name "$VAULT_NAME" \
+        --policy-name "$POLICY_NAME" \
+        --disk-list-setting exclude \
+        --diskslist $exclude_disks; then
       echo "  [OK] Backup enabled (excluded LUNs: $exclude_disks)"
     else
       echo "  [FAIL] Could not enable backup for $vm_name"
@@ -112,13 +120,11 @@ for vm_id in $vm_ids; do
   else
     echo "  No shared disks — enabling standard backup..."
 
-    az backup protection enable-for-vm \
-      --vm "$vm_id" \
-      --resource-group "$VAULT_RG" \
-      --vault-name "$VAULT_NAME" \
-      --policy-name "$POLICY_NAME"
-
-    if [ $? -eq 0 ]; then
+    if az backup protection enable-for-vm \
+        --vm "$vm_id" \
+        --resource-group "$VAULT_RG" \
+        --vault-name "$VAULT_NAME" \
+        --policy-name "$POLICY_NAME"; then
       echo "  [OK] Backup enabled"
     else
       echo "  [FAIL] Could not enable backup for $vm_name"
@@ -126,6 +132,6 @@ for vm_id in $vm_ids; do
   fi
 
   echo ""
-done
+done <<< "$vm_ids"
 
 echo "Backup configuration completed for all VMs in resource group: $RESOURCE_GROUP"
