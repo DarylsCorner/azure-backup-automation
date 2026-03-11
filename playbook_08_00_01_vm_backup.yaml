@@ -2,12 +2,11 @@
 # Licensed under the MIT License.
 
 # /*---------------------------------------------------------------------------8
-# |                                                                             |
-# |        Playbook for Azure VM Backup Protection Management                  |
-# |                                                                             |
-# |  Enables Azure Backup for all VMs in the SAP system resource group.        |
-# |  Automatically detects and excludes shared disks (e.g. ASCS/ERS quorum).  |
-# |                                                                             |
+# |                                                                            |
+# |       Playbook for Azure VM Backup Protection Management                  |
+# |  Enables Azure Backup for all VMs in the SAP system resource group.       |
+# |  Automatically detects and excludes shared disks (e.g. ASCS/ERS quorum). |
+# |                                                                            |
 # +------------------------------------4--------------------------------------*/
 ---
 
@@ -16,7 +15,7 @@
   gather_facts:                        false
 
   vars:
-    backup_action:                     "{{ backup_action | default('enable') }}"
+    backup_action:                     "{{ vm_backup_action | default('enable') }}"
 
   tasks:
 
@@ -28,9 +27,9 @@
           - backup_policy_name is defined and backup_policy_name | length > 0
         fail_msg: |
           Missing required extra-vars. Run with:
-            --extra-vars="backup_vault_name=<vault>
-                          backup_vault_rg=<rg>
-                          backup_policy_name=<policy>"
+              --extra-vars="backup_vault_name=<vault>
+                             backup_vault_rg=<rg>
+                              backup_policy_name=<policy>"
 
     - name:                            "VM Backup: - Get resource group from sap-parameters"
       ansible.builtin.shell: |
@@ -38,6 +37,11 @@
           | grep -v '#' | head -1 | awk -F': ' '{print $2}' | tr -d ' \r\n'
       register:                        rg_result
       changed_when:                    false
+      when:                            resource_group_name is not defined
+
+    - name:                            "VM Backup: - Set resource group from extra-vars or file"
+      ansible.builtin.set_fact:
+        resolved_resource_group:       "{{ resource_group_name if resource_group_name is defined else rg_result.stdout }}"
 
     - name:                            "VM Backup: - Get subscription from sap-parameters"
       ansible.builtin.shell: |
@@ -45,13 +49,18 @@
           | grep -v '#' | head -1 | awk -F': ' '{print $2}' | tr -d ' \r\n'
       register:                        sub_result
       changed_when:                    false
+      when:                            subscription_id is not defined
+
+    - name:                            "VM Backup: - Set subscription from extra-vars or file"
+      ansible.builtin.set_fact:
+        resolved_subscription_id:     "{{ subscription_id if subscription_id is defined else sub_result.stdout }}"
 
     - name:                            "VM Backup: - Display configuration"
       ansible.builtin.debug:
         msg:
           - "Action         : {{ backup_action }}"
-          - "Resource Group : {{ rg_result.stdout }}"
-          - "Subscription   : {{ sub_result.stdout }}"
+          - "Resource Group : {{ resolved_resource_group }}"
+          - "Subscription   : {{ resolved_subscription_id }}"
           - "Vault Name     : {{ backup_vault_name }}"
           - "Vault RG       : {{ backup_vault_rg }}"
           - "Policy Name    : {{ backup_policy_name }}"
@@ -60,11 +69,11 @@
       ansible.builtin.script:
         cmd:                           >-
           {{ playbook_dir }}/../scripts/backup_management.sh
-          '{{ rg_result.stdout }}'
+          '{{ resolved_resource_group }}'
           '{{ backup_vault_name }}'
           '{{ backup_vault_rg }}'
           '{{ backup_policy_name }}'
-          '{{ sub_result.stdout }}'
+          '{{ resolved_subscription_id }}'
       register:                        backup_result
       changed_when:                    backup_result.rc == 0
       when:                            backup_action == 'enable'
@@ -73,6 +82,16 @@
       ansible.builtin.debug:
         var:                           backup_result.stdout_lines
       when:                            backup_action == 'enable'
+
+    - name:                            "VM Backup: - Ensure .progress directory exists"
+      ansible.builtin.file:
+        path:                          "{{ _workspace_directory }}/.progress"
+        state:                         directory
+        mode:                          "0755"
+      when:
+        - backup_action == 'enable'
+        - backup_result is defined
+        - backup_result.rc == 0
 
     - name:                            "VM Backup: - Create completion flag"
       ansible.builtin.file:
