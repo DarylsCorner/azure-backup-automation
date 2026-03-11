@@ -31,27 +31,27 @@
                              backup_vault_rg=<rg>
                               backup_policy_name=<policy>"
 
-    - name:                            "VM Backup: - Get resource group from sap-parameters"
+    - name:                            "VM Backup: - Get resource group from inventory"
       ansible.builtin.shell: |
-        grep 'resource_group_name' "{{ _workspace_directory }}/sap-parameters.yaml" \
+        grep 'resource_group_name' "{{ _workspace_directory }}/{{ lookup('env', 'ANSIBLE_INVENTORY') }}" \
           | grep -v '#' | head -1 | awk -F': ' '{print $2}' | tr -d ' \r\n'
       register:                        rg_result
       changed_when:                    false
       when:                            resource_group_name is not defined
 
-    - name:                            "VM Backup: - Set resource group from extra-vars or file"
+    - name:                            "VM Backup: - Set resource group from extra-vars or inventory"
       ansible.builtin.set_fact:
         resolved_resource_group:       "{{ resource_group_name if resource_group_name is defined else rg_result.stdout }}"
 
-    - name:                            "VM Backup: - Get subscription from sap-parameters"
+    - name:                            "VM Backup: - Get subscription from inventory"
       ansible.builtin.shell: |
-        grep 'subscription_id' "{{ _workspace_directory }}/sap-parameters.yaml" \
+        grep 'subscription_id' "{{ _workspace_directory }}/{{ lookup('env', 'ANSIBLE_INVENTORY') }}" \
           | grep -v '#' | head -1 | awk -F': ' '{print $2}' | tr -d ' \r\n'
       register:                        sub_result
       changed_when:                    false
       when:                            subscription_id is not defined
 
-    - name:                            "VM Backup: - Set subscription from extra-vars or file"
+    - name:                            "VM Backup: - Set subscription from extra-vars or inventory"
       ansible.builtin.set_fact:
         resolved_subscription_id:     "{{ subscription_id if subscription_id is defined else sub_result.stdout }}"
 

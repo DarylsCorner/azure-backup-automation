@@ -77,12 +77,14 @@ ansible-playbook \
 
 ## Configuration
 
-Variables auto-derived from `sap-parameters.yaml`:
+Variables auto-derived from the inventory file (via `ANSIBLE_INVENTORY` environment variable):
 
 | Variable | Source | Description |
 |---|---|---|
-| `resource_group_name` | sap-parameters.yaml | SAP VM resource group (the deployed SID's RG) |
-| `subscription_id` | sap-parameters.yaml | Azure subscription ID |
+| `resource_group_name` | Inventory file (e.g., `sap-parameters.yaml`) | SAP VM resource group (the deployed SID's RG) |
+| `subscription_id` | Inventory file (e.g., `sap-parameters.yaml`) | Azure subscription ID |
+
+> **Note**: This follows the same pattern as the ODCR playbook — when you pass `-i <inventory-file>`, the playbook automatically extracts `subscription_id` and `resource_group_name` from that file. No need to hardcode values or pass them as extra-vars.
 
 Required extra-vars (passed at runtime):
 
@@ -223,7 +225,7 @@ Backup configuration completed for all VMs in resource group: X00-WORKLOAD-RG
 ## Files
 
 1. **`playbook_08_00_01_vm_backup.yaml`** — Ansible playbook wrapper
-   - Reads RG and subscription from `sap-parameters.yaml`
+   - Reads RG and subscription from the inventory file (via `ANSIBLE_INVENTORY` env var)
    - Validates required extra-vars
    - Calls `backup_management.sh` with resolved parameters
    - Writes a `.progress/vm-backup-done` completion flag
