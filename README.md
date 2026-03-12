@@ -87,7 +87,7 @@ cd ~/Azure_SAP_Automated_Deployment/WORKSPACES/SYSTEM/<SID>/
 
 Then select **"VM Backup Protection"** from the menu.
 
-### 3. Add Variables to sap-parameters.yaml
+### 3. Add Variables to sap-parameters.yaml (Per-SID)
 
 Add the backup variables directly to your SID's `sap-parameters.yaml` file so the
 configuration menu picks them up automatically:
@@ -107,48 +107,16 @@ cd ~/Azure_SAP_Automated_Deployment/WORKSPACES/SYSTEM/<SID>/
 # Select "VM Backup Protection"
 ```
 
-### 4. Edit sap-parameters.tmpl Template with Variables Commented (Recommended)
+> **Note**: These manual edits will be **overwritten if Terraform reruns** for that
+> SID. You'll need to re-add the variables after any Terraform apply.
 
-For a reusable approach, add the backup variables to the SDAF template file
-`sap-parameters.tmpl` with comments. This makes the variables visible in every
-newly deployed SID's `sap-parameters.yaml`, ready to enable when needed:
+### Comparison of Variable Management Approaches
 
-**File**: `~/Azure_SAP_Automated_Deployment/sap-automation/deploy/terraform/terraform-units/modules/sap_system/output_files/sap-parameters.tmpl`
-
-```yaml
-# ==========================================
-# VM Backup Protection Configuration
-# ==========================================
-# Uncomment and populate the following variables to enable
-# Azure Backup integration via the configuration menu.
-#
-# backup_vault_name:   "rsv-sap-backup-prod"
-# backup_vault_rg:     "rg-backup-services"
-# backup_policy_name:  "Enhanced-Backup-Policy"
-```
-
-When you're ready to enable backup for a specific SID, edit that SID's
-`sap-parameters.yaml` and remove the `#` prefix:
-
-```yaml
-# ==========================================
-# VM Backup Protection Configuration
-# ==========================================
-# Uncomment and populate the following variables to enable
-# Azure Backup integration via the configuration menu.
-#
-backup_vault_name:   "rsv-sap-backup-prod"
-backup_vault_rg:     "rg-backup-services"
-backup_policy_name:  "Enhanced-Backup-Policy"
-```
-
-Then run via the configuration menu:
-
-```bash
-cd ~/Azure_SAP_Automated_Deployment/WORKSPACES/SYSTEM/<SID>/
-~/Azure_SAP_Automated_Deployment/sap-automation/deploy/ansible/configuration_menu.sh
-# Select "VM Backup Protection"
-```
+| Approach | Effort | Persistence | Best For |
+|----------|--------|-------------|----------|
+| **1. Direct ansible-playbook** | Low | N/A (runtime only) | One-off runs, testing |
+| **2. Configuration menu + extra-vars** | Low | N/A (runtime only) | Ad-hoc runs |
+| **3. Edit sap-parameters.yaml** | Low | Overwrites on TF rerun | Quick setup, stable environments |
 
 ---
 
@@ -330,6 +298,21 @@ az backup item show \
 - [Azure SAP Deployment Automation Framework](https://github.com/Azure/sap-automation)
 - [SDAF Deployment Framework docs](https://learn.microsoft.com/azure/sap/automation/deployment-framework)
 - [ODCR Automation (inspiration)](https://github.com/DarylsCorner/azure-odcr-automation)
+
+---
+
+## Future Enhancements
+
+### Terraform Integration for sap-parameters.tmpl
+
+A future enhancement would add the backup variables as commented placeholders
+directly to the SDAF template file `sap-parameters.tmpl`. This would make the
+variables visible in every newly deployed SID's `sap-parameters.yaml`, ready to
+uncomment when needed.
+
+**Template file**: `~/Azure_SAP_Automated_Deployment/sap-automation/deploy/terraform/terraform-units/modules/sap_system/output_files/sap-parameters.tmpl`
+
+This requires additional Terraform changes and testing. Contributions welcome!
 
 ---
 
