@@ -52,25 +52,102 @@ Key capabilities:
 
 ---
 
-## Quick Start
+## Usage
 
-### Via Configuration Menu (Recommended)
+There are multiple ways to run this playbook depending on your workflow and how
+you want to manage variables. Choose the approach that best fits your environment.
+
+### 1. Run Ansible Directly with Extra-Vars
+
+Run the playbook directly using `ansible-playbook` and pass all backup-related
+variables at the command line:
+
+```bash
+cd ~/Azure_SAP_Automated_Deployment/WORKSPACES/SYSTEM/<SID>/
+
+ansible-playbook \
+  ~/Azure_SAP_Automated_Deployment/sap-automation/deploy/ansible/playbook_08_00_01_vm_backup.yaml \
+  -i sap-parameters.yaml \
+  -e "_workspace_directory=$(pwd)" \
+  -e "backup_vault_name=rsv-sap-backup-prod backup_vault_rg=rg-backup-services backup_policy_name=Enhanced-Backup-Policy"
+```
+
+> **Note**: No `--private-key` is required since this playbook runs on `localhost`.
+
+### 2. Run via Configuration Menu with Extra-Vars at Runtime
+
+Use the SDAF configuration menu and pass the backup variables as extra-vars:
+
+```bash
+cd ~/Azure_SAP_Automated_Deployment/WORKSPACES/SYSTEM/<SID>/
+
+~/Azure_SAP_Automated_Deployment/sap-automation/deploy/ansible/configuration_menu.sh \
+  --extra-vars="backup_vault_name=rsv-sap-backup-prod backup_vault_rg=rg-backup-services backup_policy_name=Enhanced-Backup-Policy"
+```
+
+Then select **"VM Backup Protection"** from the menu.
+
+### 3. Add Variables to sap-parameters.yaml
+
+Add the backup variables directly to your SID's `sap-parameters.yaml` file so the
+configuration menu picks them up automatically:
+
+```yaml
+# Add these lines to sap-parameters.yaml
+backup_vault_name:   "rsv-sap-backup-prod"
+backup_vault_rg:     "rg-backup-services"
+backup_policy_name:  "Enhanced-Backup-Policy"
+```
+
+Then run the configuration menu without extra-vars:
 
 ```bash
 cd ~/Azure_SAP_Automated_Deployment/WORKSPACES/SYSTEM/<SID>/
 ~/Azure_SAP_Automated_Deployment/sap-automation/deploy/ansible/configuration_menu.sh
-# Select the option number you assigned — e.g. "VM Backup Protection"
+# Select "VM Backup Protection"
 ```
 
-### Direct Ansible Execution
+### 4. Edit sap-parameters.tmpl Template with Variables Commented (Recommended)
+
+For a reusable approach, add the backup variables to the SDAF template file
+`sap-parameters.tmpl` with comments. This makes the variables visible in every
+newly deployed SID's `sap-parameters.yaml`, ready to enable when needed:
+
+**File**: `~/Azure_SAP_Automated_Deployment/sap-automation/deploy/terraform/terraform-units/modules/sap_system/output_files/sap-parameters.tmpl`
+
+```yaml
+# ==========================================
+# VM Backup Protection Configuration
+# ==========================================
+# Uncomment and populate the following variables to enable
+# Azure Backup integration via the configuration menu.
+#
+# backup_vault_name:   "rsv-sap-backup-prod"
+# backup_vault_rg:     "rg-backup-services"
+# backup_policy_name:  "Enhanced-Backup-Policy"
+```
+
+When you're ready to enable backup for a specific SID, edit that SID's
+`sap-parameters.yaml` and remove the `#` prefix:
+
+```yaml
+# ==========================================
+# VM Backup Protection Configuration
+# ==========================================
+# Uncomment and populate the following variables to enable
+# Azure Backup integration via the configuration menu.
+#
+backup_vault_name:   "rsv-sap-backup-prod"
+backup_vault_rg:     "rg-backup-services"
+backup_policy_name:  "Enhanced-Backup-Policy"
+```
+
+Then run via the configuration menu:
 
 ```bash
-ansible-playbook \
-  ~/Azure_SAP_Automated_Deployment/sap-automation/deploy/ansible/playbook_08_00_01_vm_backup.yaml \
-  --inventory-file=X00_hosts.yaml \
-  --private-key=sshkey \
-  --extra-vars="@sap-parameters.yaml" \
-  --extra-vars="backup_vault_name=<vault-name> backup_vault_rg=<vault-rg> backup_policy_name=<policy-name>"
+cd ~/Azure_SAP_Automated_Deployment/WORKSPACES/SYSTEM/<SID>/
+~/Azure_SAP_Automated_Deployment/sap-automation/deploy/ansible/configuration_menu.sh
+# Select "VM Backup Protection"
 ```
 
 ---
@@ -86,7 +163,7 @@ Variables auto-derived from the inventory file (via `ANSIBLE_INVENTORY` environm
 
 > **Note**: This follows the same pattern as the ODCR playbook — when you pass `-i <inventory-file>`, the playbook automatically extracts `subscription_id` and `resource_group_name` from that file. No need to hardcode values or pass them as extra-vars.
 
-Required extra-vars (passed at runtime):
+Required extra-vars:
 
 | Variable | Required | Description |
 |---|---|---|
@@ -146,24 +223,7 @@ all_playbooks=(
 > is the 16th item in `options`, `playbook_08_00_01_vm_backup.yaml` must be the
 > 16th item in `all_playbooks`.
 
-### Step 3: Add Default Extra-Vars for the Menu Entry (Optional)
-
-The backup playbook requires three extra-vars that vary per environment
-(`backup_vault_name`, `backup_vault_rg`, `backup_policy_name`). You can either:
-
-**Option A — Pass at menu prompt**: `configuration_menu.sh` will prompt for
-extra-vars when you select the option; enter them at the prompt.
-
-**Option B — Embed in sap-parameters.yaml**: Add the following lines to each SID's
-`sap-parameters.yaml` so the menu picks them up automatically:
-
-```yaml
-backup_vault_name:   "rsv-<your-vault>"
-backup_vault_rg:     "rg-<your-vault-rg>"
-backup_policy_name:  "Enhanced-Backup-Policy"
-```
-
-### Step 4: Verify Integration
+### Step 3: Verify Integration
 
 ```bash
 cd ~/Azure_SAP_Automated_Deployment/WORKSPACES/SYSTEM/<SID>/
